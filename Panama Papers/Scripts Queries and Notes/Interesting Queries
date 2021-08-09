@@ -8,8 +8,8 @@ RETURN o.name,r,c.company_type, c.name
 Who helped me set up companies
 
 MATCH (o:Officers) WHERE toLower(o.name) ENDS WITH " roy"
-MATCH (o)-[r]-(c:Entities)-[r:INTERMEDIARY_OF]-(associate)
-RETURN o.name,r,c.company_type, c.name, associate
+MATCH (o)-[ro]-(c:Entities)-[ro:INTERMEDIARY_OF]-(associate)
+RETURN o.name,ro,c.company_type, c.name, associate
 
 
 What other companies did they help set up?
