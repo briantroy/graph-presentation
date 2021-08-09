@@ -1,0 +1,116 @@
+Officers:
+
+ USING PERIODIC COMMIT LOAD CSV WITH HEADERS FROM 'file:///csv_panama_papers.2018-02-14/panama_papers.nodes.officer.csv' AS line CREATE (:Officers { name: line.name, icij_id: line.icij_id, valid_until: line.valid_until, country_codes: line.country_codes, countries: line.countries, node_id: toInteger(line.node_id), sourceID: line.sourceID});
+
+
+ Addresses:
+
+ USING PERIODIC COMMIT LOAD CSV WITH HEADERS FROM 'file:///csv_panama_papers.2018-02-14/panama_papers.nodes.address.csv' AS line CREATE (:Addresses { address: line.address, icij_id: line.icij_id, valid_until: line.valid_until, country_codes: line.country_codes, countries: line.countries, node_id: toInteger(line.node_id), sourceID: line.sourceID});
+
+
+ Intermediaries:
+
+ USING PERIODIC COMMIT LOAD CSV WITH HEADERS FROM 'file:///csv_panama_papers.2018-02-14/panama_papers.nodes.intermediary.csv' AS line CREATE (:Intermediaries { name: line.name, internal_id: line.internal_id, address: line.address, valid_until: line.valid_until, country_codes: line.country_codes, countries: line.countries, status: line.status, node_id: toInteger(line.node_id), sourceID: line.sourceID});
+
+ Entities:
+
+ USING PERIODIC COMMIT LOAD CSV WITH HEADERS FROM 'file:///csv_panama_papers.2018-02-14/panama_papers.nodes.entity.csv' AS line CREATE (:Entities { name: line.name, original_name: line.original_name, former_name: line.former_name, jurisdiction: line.jurisdiction, jurisdiction_description: line.jurisdiction_description, company_type: line.company_type, address: line.address, internal_id: line.internal_id, incorporation_date: line.incorporation_date, inactivation_date: line.inactivation_date, struck_off_date: line.struck_off_date, dorm_date: line.dorm_date, status: line.status, service_provider: line.service_provider, ibcRUC: toInteger(line.ibcRUC) , country_codes: line.country_codes, countries: line.countries, note: line.note, valid_until: line.valid_until, node_id: toInteger(line.node_id), sourceID: line.sourceID});
+
+
+Constraints (Indexes)
+CREATE CONSTRAINT ON (n:Officers) ASSERT n.node_id IS UNIQUE;
+CREATE CONSTRAINT ON (n:Entities) ASSERT n.node_id IS UNIQUE;
+CREATE CONSTRAINT ON (n:Addresses) ASSERT n.node_id IS UNIQUE;
+CREATE CONSTRAINT ON (n:Intermediaries) ASSERT n.node_id IS UNIQUE;
+
+Edges:
+ 
+Before starting to add your edges you should up the Max Heap Size and PageCache as follows:
+dbms.memory.heap.max_size=3G
+dbms.memory.pagecache.size=1G
+
+Just in case - the next cypher query will remove all relationship from the DB
+
+match ()-[r]->() delete r;
+ 
+ This statement will import all edges - the issue with this is all edge types are lost in Neo4j.
+ Also, this is not performant as node_id is indexed by node label (officers, entities, intermediaries, and addresses)
+
+USING PERIODIC COMMIT LOAD CSV WITH HEADERS FROM 'file:///csv_panama_papers.2018-02-14/panama_papers.edges.csv' AS csvLine
+MATCH (n1 { id: toInteger(csvLine.node_1)}),(n2 { id: toInteger(csvLine.node_2)})
+CREATE (n1)-[:ACCOC {role: csvLine.rel_type}]->(n2);
+
+
+Edges by Type:
+
+Officer_Of Edges (run all 3 - order isn't important):
+
+USING PERIODIC COMMIT 500
+LOAD CSV WITH HEADERS FROM 'file:///csv_panama_papers.2018-02-14/officer_of_edges.csv' AS csvLine
+MATCH (n1:Officers { node_id: toInteger(csvLine.START_ID)})
+MATCH (n2:Entities { node_id: toInteger(csvLine.END_ID)})
+FOREACH(ignoreMe IN CASE WHEN (csvLine.start_date IS NULL AND csvLine.end_date IS NULL) THEN [1] ELSE[] END |
+    MERGE (n1)-[r:OFFICER_OF]->(n2)
+    ON CREATE SET r.role = csvLine.link
+    ON MATCH SET r.role = csvLine.link
+);
+
+USING PERIODIC COMMIT 500
+LOAD CSV WITH HEADERS FROM 'file:///csv_panama_papers.2018-02-14/officer_of_edges.csv' AS csvLine
+MATCH (n1:Officers { node_id: toInteger(csvLine.START_ID)})
+MATCH (n2:Entities { node_id: toInteger(csvLine.END_ID)})
+FOREACH(ignoreMe IN CASE WHEN (csvLine.start_date IS NULL AND csvLine.end_date IS NOT NULL) THEN [1] ELSE[] END |
+    MERGE (n1)-[r:OFFICER_OF]->(n2)
+    ON CREATE SET r.role = csvLine.link
+    ON MATCH SET r.role = csvLine.link
+    ON CREATE SET r.end_ts = apoc.date.parse(csvLine.end_date, "ms", "dd-LLL-yyyy")
+    ON CREATE SET r.end_date = date(datetime({epochmillis: r.end_ts}))
+    ON MATCH SET r.end_ts = apoc.date.parse(csvLine.end_date, "ms", "dd-LLL-yyyy")
+    ON MATCH SET r.end_date = date(datetime({epochmillis: r.end_ts}))
+);
+
+
+USING PERIODIC COMMIT 500
+LOAD CSV WITH HEADERS FROM 'file:///csv_panama_papers.2018-02-14/officer_of_edges.csv' AS csvLine
+MATCH (n1:Officers { node_id: toInteger(csvLine.START_ID)})
+MATCH (n2:Entities { node_id: toInteger(csvLine.END_ID)})
+FOREACH(ignoreMe IN CASE WHEN csvLine.start_date IS NOT NULL THEN [1] ELSE [] END |
+    MERGE (n1)-[r:OFFICER_OF]->(n2)
+    ON CREATE SET r.role = csvLine.link
+    ON MATCH SET r.role = csvLine.link
+    ON CREATE SET r.start_ts = apoc.date.parse(csvLine.start_date, "ms", "dd-LLL-yyyy")
+    ON CREATE SET r.start_date = date(datetime({epochmillis: r.start_ts}))
+    ON MATCH SET r.start_ts = apoc.date.parse(csvLine.start_date, "ms", "dd-LLL-yyyy")
+    ON MATCH SET r.start_date = date(datetime({epochmillis: r.start_ts}))
+    FOREACH(ignoreMe IN CASE WHEN csvLine.end_date IS NOT NULL THEN [1] ELSE [] END | 
+        MERGE (n1)-[r:OFFICER_OF]->(n2)
+        ON CREATE SET r.role = csvLine.link
+        ON MATCH SET r.role = csvLine.link
+        ON CREATE SET r.end_ts = apoc.date.parse(csvLine.end_date, "ms", "dd-LLL-yyyy")
+        ON CREATE SET r.end_date = date(datetime({epochmillis: r.end_ts}))
+        ON MATCH SET r.end_ts = apoc.date.parse(csvLine.end_date, "ms", "dd-LLL-yyyy")
+        ON MATCH SET r.end_date = date(datetime({epochmillis: r.end_ts}))
+    )
+);
+
+
+
+Registered_Address_Of Edges:
+
+For Entities:
+
+USING PERIODIC COMMIT LOAD CSV WITH HEADERS FROM 'file:///csv_panama_papers.2018-02-14/registered_address_edges.csv' AS csvLine
+MATCH (n1:Entities { node_id: toInteger(csvLine.START_ID)}),(n2:Addresses { node_id: toInteger(csvLine.END_ID)})
+MERGE (n1)-[:REGISTERED_ADDRESS_OF {role: csvLine.link}]->(n2);
+
+For Officers:
+
+USING PERIODIC COMMIT LOAD CSV WITH HEADERS FROM 'file:///csv_panama_papers.2018-02-14/registered_address_edges.csv' AS csvLine
+MATCH (n1:Officers { node_id: toInteger(csvLine.START_ID)}),(n2:Addresses { node_id: toInteger(csvLine.END_ID)})
+MERGE (n1)-[:REGISTERED_ADDRESS_OF {role: csvLine.link}]->(n2);
+
+Intermediary_Of.csv Edges:
+
+USING PERIODIC COMMIT LOAD CSV WITH HEADERS FROM 'file:///csv_panama_papers.2018-02-14/intermediary_of_edges.csv' AS csvLine
+MATCH (n1:Intermediaries { node_id: toInteger(csvLine.START_ID)}),(n2:Entities { node_id: toInteger(csvLine.END_ID)})
+MERGE (n1)-[:INTERMEDIARY_OF {role: csvLine.link}]->(n2);

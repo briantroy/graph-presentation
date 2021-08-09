@@ -1,0 +1,69 @@
+Find me:
+
+
+MATCH (o:Officers) WHERE toLower(o.name) ENDS WITH " roy"
+MATCH (o)-[r]-(c:Entities)
+RETURN o.name,r,c.company_type, c.name
+
+Who helped me set up companies
+
+MATCH (o:Officers) WHERE toLower(o.name) ENDS WITH " roy"
+MATCH (o)-[r]-(c:Entities)-[r:INTERMEDIARY_OF]-(associate)
+RETURN o.name,r,c.company_type, c.name, associate
+
+
+What other companies did they help set up?
+
+MATCH (associate:Intermediaries) where associate.name = "CORPORATE MANAGEMENT SERVICES LIMITED"
+MATCH (associate:Intermediaries)-[r:INTERMEDIARY_OF]-(company:Entities)
+return associate.name, company.name
+
+Who else did they set up for?
+
+MATCH (associate:Intermediaries) where associate.name = "CORPORATE MANAGEMENT SERVICES LIMITED"
+MATCH (associate:Intermediaries)-[r:INTERMEDIARY_OF]-(company:Entities)
+MATCH (company)-[r2:OFFICER_OF]-(officers:Officers)
+return associate.name, r2.start_date, r2.end_date, company.name, officers.name
+
+
+Just the one's who are still officers:
+
+MATCH (associate:Intermediaries) where associate.name = "CORPORATE MANAGEMENT SERVICES LIMITED"
+MATCH (associate:Intermediaries)-[r:INTERMEDIARY_OF]->(company:Entities)
+MATCH (company)<-[r2:OFFICER_OF]-(officers:Officers)
+WHERE r2.end_date is null
+RETURN associate, company, officers
+
+
+Just the one's who are still officers and were set up after 1/1/2013:
+
+MATCH (associate:Intermediaries) where associate.name = "CORPORATE MANAGEMENT SERVICES LIMITED"
+MATCH (associate:Intermediaries)-[r:INTERMEDIARY_OF]->(company:Entities)
+MATCH (company)<-[r2:OFFICER_OF]-(officers:Officers)
+WHERE r2.end_date is null AND r2.start_date > date({year: 2013, month: 1, day: 1})
+return associate.name, r2.start_date, r2.end_date, company.name, officers.name
+
+Now do the above and show the graph:
+
+MATCH (associate:Intermediaries) where associate.name = "CORPORATE MANAGEMENT SERVICES LIMITED"
+MATCH (associate:Intermediaries)-[r:INTERMEDIARY_OF]->(company:Entities)
+MATCH (company)<-[r2:OFFICER_OF]-(officers:Officers)
+WHERE r2.end_date is null AND r2.start_date > date({year: 2013, month: 1, day: 1})
+return associate, company, officers
+
+Now... show which officer's of those companies are co-officers of other companies:
+
+MATCH (associate:Intermediaries) where associate.name = "CORPORATE MANAGEMENT SERVICES LIMITED"
+MATCH (associate)-[r:INTERMEDIARY_OF]->(company:Entities)
+MATCH (company)<-[r2:OFFICER_OF]-(person:Officers)
+MATCH (person)-[r3:OFFICER_OF]->(other_company:Entities)
+MATCH (other_company)<-[r4:OFFICER_OF]-(other_person:Officers)
+WHERE r2.end_date is null and r3.end_date is null and r4.end_date is null
+AND r2.start_date > date('2013-01-01')
+AND r2.start_date < date('2013-06-01')
+AND r3.start_date > date('2013-01-01')
+AND r3.start_date < date('2013-06-01')
+AND r4.start_date > date('2013-01-01')
+AND r4.start_date < date('2013-06-01')
+return associate, company, person, other_company, other_person
+limit 600
