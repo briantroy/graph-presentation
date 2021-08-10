@@ -29,6 +29,11 @@ Before starting to add your edges you should up the Max Heap Size and PageCache 
 dbms.memory.heap.max_size=3G
 dbms.memory.pagecache.size=1G
 
+In order to import the edges you will need the optional Neo4j APOC library to handle datetime conversions.
+You can install APOC in Neo4j desktop here:
+https://neo4j.com/labs/apoc/4.1/installation/
+
+
 Just in case - the next cypher query will remove all relationship from the DB
 
 match ()-[r]->() delete r;
